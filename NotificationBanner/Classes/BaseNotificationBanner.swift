@@ -44,13 +44,35 @@ public class BaseNotificationBanner: UIView {
         get {
             if let customBannerHeight = customBannerHeight {
                 return customBannerHeight
+            } else if shouldAdjustForDynamicIsland() {
+                return 104.0
+            } else if shouldAdjustForNotchFeaturedIphone() {
+                return 88.0
             } else {
-                return shouldAdjustForNotchFeaturedIphone() ? 88.0 : 64.0
+                return 64.0 + heightAdjustment
             }
         } set {
             customBannerHeight = newValue
         }
     }
+    
+    /**
+        The height adjustment needed in order for the banner to look properly displayed.
+     */
+    internal var heightAdjustment: CGFloat {
+        if NotificationBannerUtilities.hasDynamicIsland() {
+            return 16.0
+        }
+
+        // iOS 13 does not allow covering the status bar on non-notch iPhones
+        // The banner needs to be moved further down under the status bar in this case
+        guard #available(iOS 13.0, *), !NotificationBannerUtilities.isNotchFeaturedIPhone() else {
+            return 0
+        }
+
+        return UIApplication.shared.statusBarFrame.height
+    }
+    
     
     /// The topmost label of the notification if a custom view is not desired
     public internal(set) var titleLabel: MarqueeLabel?
@@ -208,15 +230,23 @@ public class BaseNotificationBanner: UIView {
      */
     
     private func updateSpacerViewHeight(make: ConstraintMaker? = nil) {
-        let finalHeight = NotificationBannerUtilities.isNotchFeaturedIPhone()
-            && UIApplication.shared.statusBarOrientation.isPortrait
-            && (parentViewController?.navigationController?.isNavigationBarHidden ?? true) ? 40.0 : 10.0
+        let finalHeight = spacerViewHeight()
         if let make = make {
             make.height.equalTo(finalHeight)
         } else {
             spacerView.snp.updateConstraints({ (make) in
                 make.height.equalTo(finalHeight)
             })
+        }
+    }
+
+    internal func spacerViewHeight() -> CGFloat {
+        if shouldAdjustForDynamicIsland() {
+            return 44.0
+        } else if shouldAdjustForNotchFeaturedIphone() {
+            return 40.0
+        } else {
+            return 10.0
         }
     }
     
@@ -449,7 +479,7 @@ public class BaseNotificationBanner: UIView {
         return true
     }
     
-    /** 
+    /**
         Calculates the maximum `y` position that a notification banner can slide in from
     */
  
@@ -466,10 +496,19 @@ public class BaseNotificationBanner: UIView {
      */
     
     internal func shouldAdjustForNotchFeaturedIphone() -> Bool {
+        if self.parentViewController?.modalPresentationStyle == .formSheet { return false }
         return NotificationBannerUtilities.isNotchFeaturedIPhone()
             && UIApplication.shared.statusBarOrientation.isPortrait
             && (self.parentViewController?.navigationController?.isNavigationBarHidden ?? true)
     }
+    
+    internal func shouldAdjustForDynamicIsland() -> Bool {
+        if self.parentViewController?.modalPresentationStyle == .formSheet { return false }
+        return NotificationBannerUtilities.hasDynamicIsland()
+            && UIApplication.shared.statusBarOrientation.isPortrait
+            && (self.parentViewController?.navigationController?.isNavigationBarHidden ?? true)
+    }
+    
     /**
         Updates the scrolling marquee label duration
     */
