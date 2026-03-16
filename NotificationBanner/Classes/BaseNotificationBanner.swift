@@ -178,6 +178,11 @@ public class BaseNotificationBanner: UIView {
             backgroundColor = BannerColors().color(for: style)
         }
         
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(onSizeChanged),
+                                               name: UIDevice.orientationDidChangeNotification,
+                                               object: nil)
+        
         let swipeUpGesture = UISwipeGestureRecognizer(target: self, action: #selector(onSwipeUpGestureRecognizer))
         swipeUpGesture.direction = .up
         addGestureRecognizer(swipeUpGesture)
@@ -190,6 +195,9 @@ public class BaseNotificationBanner: UIView {
     deinit {
         NotificationCenter.default.removeObserver(self,
                                                   name: BaseNotificationBanner.sizeDidChangeNotification,
+                                                  object: nil)
+        NotificationCenter.default.removeObserver(self,
+                                                  name: UIDevice.orientationDidChangeNotification,
                                                   object: nil)
     }
     
@@ -514,12 +522,5 @@ public class BaseNotificationBanner: UIView {
     */
     internal func updateMarqueeLabelsDurations() {
         titleLabel?.speed = .duration(CGFloat(duration - 3))
-    }
-}
-
-fileprivate extension UIWindow {
-    override open func layoutSubviews() {
-        super.layoutSubviews()
-        NotificationCenter.default.post(name: BaseNotificationBanner.sizeDidChangeNotification, object: nil)
     }
 }
