@@ -154,6 +154,13 @@ public class BaseNotificationBanner: UIView {
         return self.parentViewController?.view.frame.width ?? self.appWindow.frame.width
     }
     
+    private weak var observedContainerView: UIView?
+    private var containerFrameObservation: NSKeyValueObservation?
+    
+    private var presentationContainerView: UIView {
+        return parentViewController?.view ?? appWindow
+    }
+    
     public override var backgroundColor: UIColor? {
         get {
             return contentView.backgroundColor
@@ -193,6 +200,8 @@ public class BaseNotificationBanner: UIView {
     }
     
     deinit {
+        stopObservingContainerFrame()
+        
         NotificationCenter.default.removeObserver(self,
                                                   name: BaseNotificationBanner.sizeDidChangeNotification,
                                                   object: nil)
@@ -277,6 +286,7 @@ public class BaseNotificationBanner: UIView {
         UIView.animate(withDuration: dismissDuration, animations: {
             self.frame = self.bannerPositionFrame.startFrame
         }) { (completed) in
+            self.stopObservingContainerFrame()
             self.removeFromSuperview()
             self.isDisplaying = false
             
@@ -289,6 +299,34 @@ public class BaseNotificationBanner: UIView {
                 }
             })
         }
+    }
+    
+    /// Start frame change tracking
+    private func startObservingContainerFrameIfNeeded() {
+        let container = presentationContainerView
+        
+        // If we are already observing the correct container, do nothing
+        if observedContainerView === container, containerFrameObservation != nil {
+            return
+        }
+        
+        stopObservingContainerFrame()
+        observedContainerView = container
+        
+        // Observe container frame so we can react to iPad window resizing
+        containerFrameObservation = container.observe(\.frame, options: [.new]) { [weak self] _, _ in
+            guard let self else { return }
+            
+            guard self.isDisplaying, self.bannerPositionFrame != nil else { return }
+            self.onSizeChanged()
+        }
+    }
+    
+    /// Stop frame change tracking
+    private func stopObservingContainerFrame() {
+        containerFrameObservation?.invalidate()
+        containerFrameObservation = nil
+        observedContainerView = nil
     }
     
     /**
@@ -372,6 +410,8 @@ public class BaseNotificationBanner: UIView {
                     appWindow.windowLevel = UIWindow.Level.statusBar + 1
                 }
             }
+            
+            startObservingContainerFrameIfNeeded()
             
             NotificationCenter.default.post(name: NotificationBanner.BannerWillAppear, object: self, userInfo: notificationUserInfo)
             delegate?.notificationBannerWillAppear(self)
